@@ -211,13 +211,7 @@
 
         // Obtener URL correcta para GitHub Pages
         function getImageUrl(filename) {
-            const pathname = window.location.pathname;
-            const pathArray = pathname.split('/').filter(Boolean);
-            
-            if (pathArray.length > 0 && pathArray[0] !== 'index.html') {
-                return `${window.location.origin}/${pathArray[0]}/${filename}`;
-            }
-            return `${window.location.origin}/${filename}`;
+                return `./${filename}`;
         }
 
         // =============== APLICACIÓN PRINCIPAL ===============
