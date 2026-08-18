@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
+    <meta name="theme-color" content="#000000">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="WebAR Gallery">
+    <meta name="format-detection" content="telephone=no">
+    <title>WebAR - Galería de Alumnos</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            max-width: 100%;
+            max-height: 100%;
+            overflow: hidden;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #000;
+            position: fixed;
+            top: 0;
+            left: 0;
+        }
+
+        #root {
+            width: 100vw;
+            height: 100vh;
+            width: 100dvh; /* Dynamic viewport height para móviles */
+            height: 100dvh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            max-width: 100%;
+            max-height: 100%;
+        }
+
+        /* Prevenir scroll en iOS */
+        body {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+        }
+
+        /* Estilos para UI overlay */
+        .ui-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 10;
+            padding: max(10px, env(safe-area-inset-top));
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: #fff;
+            text-shadow: 2px 2px 8px rgba(0,0,0,0.8);
+        }
+
+        .ui-title {
+            font-size: clamp(16px, 5vw, 28px);
+            font-weight: bold;
+            margin: 15px 0 5px 0;
+            letter-spacing: 1px;
+        }
+
+        .ui-instructions {
+            font-size: clamp(12px, 3.5vw, 16px);
+            opacity: 0.85;
+            text-align: center;
+            line-height: 1.4;
+            max-width: 90%;
+        }
+
+        /* Error box */
+        .error-container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+        }
+
+        .error-box {
+            background: rgba(255, 68, 68, 0.95);
+            padding: clamp(20px, 5vw, 40px);
+            border-radius: 20px;
+            text-align: center;
+            color: white;
+            max-width: 85%;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+        }
+
+        .error-box h1 {
+            font-size: clamp(20px, 6vw, 32px);
+            margin-bottom: 15px;
+        }
+
+        .error-box p {
+            font-size: clamp(14px, 4vw, 18px);
+            margin-bottom: 25px;
+            line-height: 1.5;
+        }
+
+        .error-box button {
+            background: white;
+            color: #ff4444;
+            border: none;
+            padding: clamp(12px, 3vw, 16px) clamp(24px, 6vw, 32px);
+            border-radius: 10px;
+            font-size: clamp(14px, 3.5vw, 18px);
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            -webkit-appearance: none;
+        }
+
+        .error-box button:active {
+            transform: scale(0.98);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+
+        /* Indicador de estado */
+        .status-indicator {
+            position: absolute;
+            bottom: max(20px, env(safe-area-inset-bottom));
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 5;
+            display: none;
+        }
+
+        .status-indicator.active {
+            display: block;
+        }
+
+        /* Loading spinner */
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="module">
+        // =============== CONFIGURACIÓN ===============
+        const CONFIG = {
+            ALUMNOS: [
+                { id: 1, nombre: "Itzel", imagen: "alumno1.jpg" },
+                { id: 2, nombre: "Alisson", imagen: "alumno2.jpg" },
+                { id: 3, nombre: "Sofi", imagen: "alumno3.jpg" },
+                { id: 4, nombre: "Mitzari", imagen: "alumno4.jpg" },
+                { id: 5, nombre: "Agustin", imagen: "alumno5.jpg" },
+                { id: 6, nombre: "Erick", imagen: "alumno6.jpg" },
+                { id: 7, nombre: "Jimena", imagen: "alumno7.jpg" },
+            ],
+            DRIVE_FOLDER: "https://drive.google.com/drive/folders/1ymdMZezRSxtTXDgc67ltY3EVT_oMD9ip?usp=sharing",
+            MIN_SCALE: 0.3,
+            MAX_SCALE: 4,
+            IMAGE_SIZE: 150,
+        };
+
+        // Detectar plataforma
+        const DEVICE = {
+            isIOS: /iPad|iPhone|iPod/.test(navigator.userAgent),
+            isAndroid: /Android/.test(navigator.userAgent),
+            isMobile: /Mobile|Android|iPhone/.test(navigator.userAgent),
+            isStandalone: window.navigator.standalone === true,
+        };
+
+        // Obtener URL correcta para GitHub Pages
+        function getImageUrl(filename) {
+            const pathname = window.location.pathname;
+            const pathArray = pathname.split('/').filter(Boolean);
+            
+            if (pathArray.length > 0 && pathArray[0] !== 'index.html') {
+                return `${window.location.origin}/${pathArray[0]}/${filename}`;
+            }
+            return `${window.location.origin}/${filename}`;
+        }
+
+        // =============== APLICACIÓN PRINCIPAL ===============
+        class WebARApp {
+            constructor() {
+                this.canvas = null;
+                this.ctx = null;
+                this.video = null;
+                this.cameraActive = false;
+                this.permissionDenied = false;
+
+                this.images = {};
+                this.imageCache = new Map();
+
+                // Estado de cada alumno
+                this.alumnoStates = {};
+                CONFIG.ALUMNOS.forEach(alumno => {
+                    this.alumnoStates[alumno.id] = {
+                        x: window.innerWidth / 2 - CONFIG.IMAGE_SIZE / 2,
+                        y: window.innerHeight / 2 - CONFIG.IMAGE_SIZE / 2,
+                        scale: 1,
+                        rotation: 0,
+                    };
+                });
+
+                // Estado de gestos táctiles
+                this.touchState = {
+                    touching: null,
+                    startDistance: 0,
+                    startScale: 0,
+                    startX: 0,
+                    startY: 0,
+                    lastTime: 0,
+                    velocity: { x: 0, y: 0 },
+                };
+
+                // Optimizaciones
+                this.frameCount = 0;
+                this.fps = 0;
+                this.lastFrameTime = Date.now();
+                this.animationFrameId = null;
+
+                this.init();
+            }
+
+            async init() {
+                this.setupDOM();
+                this.setupCanvas();
+                await this.initCamera();
+                this.setupEventListeners();
+                this.preloadImages();
+                this.startAnimation();
+
+                // Manejar cambios de orientación
+                window.addEventListener('orientationchange', () => this.onOrientationChange());
+                window.addEventListener('resize', () => this.onResize());
+
+                // Prevenir comportamientos por defecto en iOS
+                if (DEVICE.isIOS) {
+                    document.addEventListener('touchmove', (e) => {
+                        if (e.target === this.canvas) {
+                            e.preventDefault();
+                        }
+                    }, { passive: false });
+                }
+            }
+
+            setupDOM() {
+                const root = document.getElementById('root');
+                root.innerHTML = `
+                    <video id="video" autoplay playsinline style="display:none;"></video>
+                    <canvas id="canvas"></canvas>
+                    <div class="ui-overlay">
+                        <div class="ui-title">📱 WebAR Gallery</div>
+                        <div class="ui-instructions">
+                            Toca para abrir Drive<br>
+                            <span style="font-size: 0.9em; opacity: 0.7;">Arrastra • Pellizca para zoom</span>
+                        </div>
+                    </div>
+                    <div class="status-indicator" id="statusIndicator">
+                        <span class="spinner"></span><span id="statusText">Cargando cámara...</span>
+                    </div>
+                `;
+            }
+
+            setupCanvas() {
+                this.canvas = document.getElementById('canvas');
+                this.ctx = this.canvas.getContext('2d', { alpha: false, antialias: false });
+                this.resizeCanvas();
+
+                // Optimizar canvas para móvil
+                if (DEVICE.isIOS) {
+                    this.canvas.style.webkitTouchCallout = 'none';
+                }
+            }
+
+            resizeCanvas() {
+                const width = window.innerWidth;
+                const height = window.innerHeight;
+                const dpr = window.devicePixelRatio || 1;
+
+                this.canvas.width = width * dpr;
+                this.canvas.height = height * dpr;
+                this.canvas.style.width = width + 'px';
+                this.canvas.style.height = height + 'px';
+
+                this.ctx.scale(dpr, dpr);
+            }
+
+            onResize() {
+                this.resizeCanvas();
+            }
+
+            onOrientationChange() {
+                setTimeout(() => this.resizeCanvas(), 100);
+            }
+
+            async initCamera() {
+                this.video = document.getElementById('video');
+                const statusIndicator = document.getElementById('statusIndicator');
+
+                try {
+                    statusIndicator.classList.add('active');
+                    document.getElementById('statusText').textContent = 'Inicializando cámara...';
+
+                    const constraints = {
+                        video: {
+                            facingMode: 'environment',
+                            width: { ideal: 1280 },
+                            height: { ideal: 720 },
+                        },
+                        audio: false,
+                    };
+
+                    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                    this.video.srcObject = stream;
+
+                    // Esperar a que el video esté listo
+                    await new Promise(resolve => {
+                        this.video.onloadedmetadata = () => {
+                            this.video.play();
+                            resolve();
+                        };
+                    });
+
+                    this.cameraActive = true;
+                    statusIndicator.classList.remove('active');
+                    this.updateStatus('Cámara lista ✓');
+
+                } catch (err) {
+                    console.error('Error de cámara:', err);
+                    this.permissionDenied = true;
+                    this.showError(err);
+                }
+            }
+
+            preloadImages() {
+                CONFIG.ALUMNOS.forEach(alumno => {
+                    const img = new Image();
+                    img.src = getImageUrl(alumno.imagen);
+                    img.onload = () => {
+                        this.images[alumno.id] = img;
+                    };
+                    img.onerror = () => {
+                        console.error(`Error cargando imagen: ${alumno.imagen}`);
+                    };
+                });
+            }
+
+            setupEventListeners() {
+                this.canvas.addEventListener('touchstart', (e) => this.handleTouchStart(e), false);
+                this.canvas.addEventListener('touchmove', (e) => this.handleTouchMove(e), false);
+                this.canvas.addEventListener('touchend', (e) => this.handleTouchEnd(e), false);
+                this.canvas.addEventListener('click', (e) => this.handleClick(e), false);
+
+                // Prevenir zoom por doble toque en iOS
+                this.canvas.addEventListener('gesturestart', (e) => e.preventDefault(), false);
+            }
+
+            handleTouchStart(e) {
+                const touches = e.touches;
+                const now = Date.now();
+
+                if (touches.length === 1) {
+                    // DRAG
+                    this.touchState.touching = 'drag';
+                    this.touchState.startX = touches[0].clientX;
+                    this.touchState.startY = touches[0].clientY;
+                    this.touchState.lastTime = now;
+                    this.touchState.velocity = { x: 0, y: 0 };
+
+                    // Vibración háptica en Android
+                    if (DEVICE.isAndroid && navigator.vibrate) {
+                        navigator.vibrate(10);
+                    }
+
+                } else if (touches.length === 2) {
+                    // PINCH
+                    this.touchState.touching = 'pinch';
+                    const dx = touches[0].clientX - touches[1].clientX;
+                    const dy = touches[0].clientY - touches[1].clientY;
+                    this.touchState.startDistance = Math.sqrt(dx * dx + dy * dy);
+
+                    // Detectar alumno más cercano
+                    const centerX = (touches[0].clientX + touches[1].clientX) / 2;
+                    const centerY = (touches[0].clientY + touches[1].clientY) / 2;
+
+                    let closest = CONFIG.ALUMNOS[0];
+                    let closestDist = Infinity;
+
+                    CONFIG.ALUMNOS.forEach(alumno => {
+                        const state = this.alumnoStates[alumno.id];
+                        const dist = Math.hypot(
+                            state.x + CONFIG.IMAGE_SIZE / 2 - centerX,
+                            state.y + CONFIG.IMAGE_SIZE / 2 - centerY
+                        );
+                        if (dist < closestDist) {
+                            closestDist = dist;
+                            closest = alumno;
+                        }
+                    });
+
+                    this.touchState.touching = closest.id;
+                    this.touchState.startScale = this.alumnoStates[closest.id].scale;
+
+                    // Vibración más fuerte para pinch
+                    if (DEVICE.isAndroid && navigator.vibrate) {
+                        navigator.vibrate(15);
+                    }
+                }
+            }
+
+            handleTouchMove(e) {
+                e.preventDefault();
+                const touches = e.touches;
+                const now = Date.now();
+
+                if (touches.length === 1 && this.touchState.touching === 'drag') {
+                    const currentX = touches[0].clientX;
+                    const currentY = touches[0].clientY;
+                    const deltaX = currentX - this.touchState.startX;
+                    const deltaY = currentY - this.touchState.startY;
+                    const deltaTime = Math.max(now - this.touchState.lastTime, 1);
+
+                    // Calcular velocidad para inercia
+                    this.touchState.velocity.x = deltaX / deltaTime;
+                    this.touchState.velocity.y = deltaY / deltaTime;
+
+                    // Encontrar alumno más cercano
+                    let closest = CONFIG.ALUMNOS[0];
+                    let closestDist = Infinity;
+
+                    CONFIG.ALUMNOS.forEach(alumno => {
+                        const state = this.alumnoStates[alumno.id];
+                        const dist = Math.hypot(
+                            state.x + CONFIG.IMAGE_SIZE / 2 - touches[0].clientX,
+                            state.y + CONFIG.IMAGE_SIZE / 2 - touches[0].clientY
+                        );
+
+                        if (dist < closestDist && dist < 150 * this.alumnoStates[alumno.id].scale) {
+                            closestDist = dist;
+                            closest = alumno;
+                        }
+                    });
+
+                    this.alumnoStates[closest.id].x += deltaX;
+                    this.alumnoStates[closest.id].y += deltaY;
+
+                    this.touchState.startX = currentX;
+                    this.touchState.startY = currentY;
+                    this.touchState.lastTime = now;
+
+                } else if (touches.length === 2 && typeof this.touchState.touching === 'number') {
+                    // PINCH
+                    const dx = touches[0].clientX - touches[1].clientX;
+                    const dy = touches[0].clientY - touches[1].clientY;
+                    const currentDistance = Math.sqrt(dx * dx + dy * dy);
+
+                    const scale = currentDistance / this.touchState.startDistance;
+                    const newScale = Math.max(
+                        CONFIG.MIN_SCALE,
+                        Math.min(CONFIG.MAX_SCALE, this.touchState.startScale * scale)
+                    );
+
+                    this.alumnoStates[this.touchState.touching].scale = newScale;
+                }
+            }
+
+            handleTouchEnd(e) {
+                this.touchState.touching = null;
+            }
+
+            handleClick(e) {
+                const rect = this.canvas.getBoundingClientRect();
+                const clickX = e.clientX - rect.left;
+                const clickY = e.clientY - rect.top;
+
+                CONFIG.ALUMNOS.forEach(alumno => {
+                    const state = this.alumnoStates[alumno.id];
+                    const dist = Math.hypot(
+                        clickX - (state.x + CONFIG.IMAGE_SIZE / 2),
+                        clickY - (state.y + CONFIG.IMAGE_SIZE / 2)
+                    );
+
+                    if (dist < (CONFIG.IMAGE_SIZE / 2) * state.scale) {
+                        // Vibración al abrir
+                        if (DEVICE.isAndroid && navigator.vibrate) {
+                            navigator.vibrate([10, 30, 10]);
+                        }
+                        window.open(CONFIG.DRIVE_FOLDER, '_blank');
+                    }
+                });
+            }
+
+            startAnimation() {
+                const animate = () => {
+                    if (!this.cameraActive) {
+                        this.animationFrameId = requestAnimationFrame(animate);
+                        return;
+                    }
+
+                    // Dibujar video
+                    const width = this.canvas.width / (window.devicePixelRatio || 1);
+                    const height = this.canvas.height / (window.devicePixelRatio || 1);
+
+                    this.ctx.drawImage(this.video, 0, 0, width, height);
+
+                    // Dibujar alumnos
+                    CONFIG.ALUMNOS.forEach(alumno => {
+                        const state = this.alumnoStates[alumno.id];
+                        const img = this.images[alumno.id];
+
+                        if (img && img.complete) {
+                            this.ctx.save();
+                            this.ctx.globalAlpha = 0.88; // Ligeramente más opaco que antes
+                            this.ctx.translate(state.x + CONFIG.IMAGE_SIZE / 2, state.y + CONFIG.IMAGE_SIZE / 2);
+                            this.ctx.rotate((state.rotation * Math.PI) / 180);
+                            this.ctx.scale(state.scale, state.scale);
+                            this.ctx.drawImage(img, -CONFIG.IMAGE_SIZE / 2, -CONFIG.IMAGE_SIZE / 2, CONFIG.IMAGE_SIZE, CONFIG.IMAGE_SIZE);
+                            this.ctx.restore();
+                        }
+                    });
+
+                    // FPS counter (debug)
+                    this.frameCount++;
+                    const now = Date.now();
+                    if (now - this.lastFrameTime >= 1000) {
+                        this.fps = this.frameCount;
+                        this.frameCount = 0;
+                        this.lastFrameTime = now;
+                    }
+
+                    this.animationFrameId = requestAnimationFrame(animate);
+                };
+
+                animate();
+            }
+
+            updateStatus(text) {
+                const indicator = document.getElementById('statusIndicator');
+                document.getElementById('statusText').textContent = text;
+                setTimeout(() => indicator.classList.remove('active'), 2000);
+            }
+
+            showError(err) {
+                const root = document.getElementById('root');
+                let errorMsg = 'No se pudo acceder a la cámara';
+
+                if (err.name === 'NotAllowedError') {
+                    errorMsg = 'Permiso de cámara denegado. Por favor, permite el acceso en la configuración.';
+                } else if (err.name === 'NotFoundError') {
+                    errorMsg = 'No se encontró cámara en el dispositivo.';
+                }
+
+                root.innerHTML = `
+                    <div class="error-container">
+                        <div class="error-box">
+                            <h1>❌ Error</h1>
+                            <p>${errorMsg}</p>
+                            <button onclick="location.reload()">Reintentar</button>
+                        </div>
+                    </div>
+                `;
+            }
+
+            destroy() {
+                if (this.video && this.video.srcObject) {
+                    this.video.srcObject.getTracks().forEach(track => track.stop());
+                }
+                if (this.animationFrameId) {
+                    cancelAnimationFrame(this.animationFrameId);
+                }
+            }
+        }
+
+        // =============== INICIALIZAR APP ===============
+        let app;
+
+        window.addEventListener('DOMContentLoaded', () => {
+            app = new WebARApp();
+        });
+
+        window.addEventListener('beforeunload', () => {
+            if (app) app.destroy();
+        });
+
+        // Prevenir bounce scroll en iOS
+        document.body.addEventListener('touchmove', (e) => {
+            if (e.target.tagName !== 'CANVAS') {
+                e.preventDefault();
+            }
+        }, { passive: false });
+
+        // Manejar orientación del dispositivo
+        window.addEventListener('orientationchange', () => {
+            if (app) {
+                setTimeout(() => {
+                    app.resizeCanvas();
+                }, 100);
+            }
+        });
+    </script>
+</body>
+</html>
